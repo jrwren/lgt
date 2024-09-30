@@ -65,9 +65,32 @@ for event in events:
     event["messages"][-1].pretty_print()
 
 snapshot = graph.get_state(config)
-print(snapshot.next)
+# start part 5 addition
 existing_message = snapshot.values["messages"][-1]
-print(existing_message.tool_calls)
+from langchain_core.messages import AIMessage, ToolMessage
+
+answer = (
+    "LangGraph is a library for building stateful, multi-actor applications with LLMs."
+)
+new_messages = [
+    # The LLM API expects some ToolMessage to match its tool call. We'll satisfy that here.
+    ToolMessage(content=answer, tool_call_id=existing_message.tool_calls[0]["id"]),
+    # And then directly "put words in the LLM's mouth" by populating its response.
+    AIMessage(content=answer),
+]
+
+new_messages[-1].pretty_print()
+graph.update_state(
+    # Which state to update
+    config,
+    # The updated values to provide. The messages in our `State` are "append-only", meaning this will be appended
+    # to the existing state. We will review how to update existing messages in the next section!
+    {"messages": new_messages},
+)
+
+print("\n\nLast 2 messages;")
+print(graph.get_state(config).values["messages"][-2:])
+# end part 5 addition
 
 events = graph.stream(None, config, stream_mode="values")
 for event in events:
