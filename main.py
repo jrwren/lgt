@@ -1,17 +1,16 @@
 # https://langchain-ai.github.io/langgraph/tutorials/introduction/#part-1-build-a-basic-chatbot
 
-
 from typing import Annotated
+
 from langchain_anthropic import ChatAnthropic
 from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.messages import BaseMessage
 from typing_extensions import TypedDict
 
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import StateGraph, START
+from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-
-memory = MemorySaver()
 
 
 class State(TypedDict):
@@ -23,26 +22,16 @@ graph_builder = StateGraph(State)
 
 tool = TavilySearchResults(max_results=2)
 tools = [tool]
-#tool.invoke("What's a 'node' in LangGraph?")
-
-# from langchain_anthropic import ChatAnthropic
-
-# llm = ChatAnthropic(model="claude-3-haiku-20240307")
-
 from langchain_ollama.chat_models import ChatOllama
 llm = ChatOllama(base_url='m1.local:11434', model="llama3.2")
 # Modification: tell the LLM which tools it can call
 llm_with_tools = llm.bind_tools(tools)
-llm = llm_with_tools # jrw
 
 
 def chatbot(state: State):
-    return {"messages": [llm.invoke(state["messages"])]}
+    return {"messages": [llm_with_tools.invoke(state["messages"])]}
 
 
-# The first argument is the unique node name
-# The second argument is the function or object that will be called whenever
-# the node is used.
 graph_builder.add_node("chatbot", chatbot)
 
 tool_node = ToolNode(tools=[tool])
@@ -53,13 +42,14 @@ graph_builder.add_conditional_edges(
     tools_condition,
 )
 graph_builder.add_edge("tools", "chatbot")
-graph_builder.add_edge(START, "chatbot")
+graph_builder.set_entry_point("chatbot")
 
+memory = MemorySaver()
 graph = graph_builder.compile(
     checkpointer=memory,
     # This is new!
     interrupt_before=["tools"],
-    # Note: can also interrupt __after__ tools, if desired.
+    # Note: can also interrupt __after__ actions, if desired.
     # interrupt_after=["tools"]
 )
 
