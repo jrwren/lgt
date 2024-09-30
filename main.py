@@ -95,12 +95,11 @@ graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge("human", "chatbot")
 graph_builder.add_edge(START, "chatbot")
 #graph_builder.set_entry_point("chatbot")
-
 memory = MemorySaver()
 graph = graph_builder.compile(
     checkpointer=memory,
     # This is new!
-    interrupt_before=["tools"],
+    interrupt_before=["human"],
     # Note: can also interrupt __after__ actions, if desired.
     # interrupt_after=["tools"]
 )
