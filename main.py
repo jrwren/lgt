@@ -1,4 +1,4 @@
-# https://langchain-ai.github.io/langgraph/tutorials/introduction/#part-1-build-a-basic-chatbot
+# https://langchain-ai.github.io/langgraph/tutorials/introduction/#part-7-time-travel
 
 from typing import Annotated
 
@@ -32,12 +32,10 @@ tool = TavilySearchResults(max_results=2)
 tools = [tool]
 from langchain_ollama.chat_models import ChatOllama
 llm = ChatOllama(base_url='m1.local:11434', model="llama3.2")
-# Modification: tell the LLM which tools it can call
 llm_with_tools = llm.bind_tools(tools + [RequestAssistance])
 
 
 def chatbot(state: State):
-    # was: return {"messages": [llm_with_tools.invoke(state["messages"])]}
     response = llm_with_tools.invoke(state["messages"])
     ask_human = False
     if (
@@ -98,38 +96,51 @@ graph_builder.add_edge(START, "chatbot")
 memory = MemorySaver()
 graph = graph_builder.compile(
     checkpointer=memory,
-    # This is new!
     interrupt_before=["human"],
-    # Note: can also interrupt __after__ actions, if desired.
-    # interrupt_after=["tools"]
 )
 
 
-user_input = "I need some expert guidance for building this AI agent. Could you request assistance for me?"
 config = {"configurable": {"thread_id": "1"}}
-# The config is the **second positional argument** to stream() or invoke()!
 events = graph.stream(
-    {"messages": [("user", user_input)]}, config, stream_mode="values"
+    {
+        "messages": [
+            ("user", "I'm learning LangGraph. Could you do some research on it for me?")
+        ]
+    },
+    config,
+    stream_mode="values",
 )
 for event in events:
     if "messages" in event:
         event["messages"][-1].pretty_print()
 
-# NOPE! THIS IS NOT WORKING!
-snapshot = graph.get_state(config)
-print(snapshot.next)
+# AGAIN IT DOES NOT WORK!!!
 
-ai_message = snapshot.values["messages"][-1]
-human_response = (
-    "We, the experts are here to help! We'd recommend you check out LangGraph to build your agent."
-    " It's much more reliable and extensible than simple autonomous agents."
+events = graph.stream(
+    {
+        "messages": [
+            ("user", "Ya that's helpful. Maybe I'll build an autonomous agent with it!")
+        ]
+    },
+    config,
+    stream_mode="values",
 )
-tool_message = create_response(human_response, ai_message)
-graph.update_state(config, {"messages": [tool_message]})
-msg = graph.get_state(config).values["messages"]
-print (msg)
-
-events = graph.stream(None, config, stream_mode="values")
 for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+
+to_replay = None
+for state in graph.get_state_history(config):
+    print("Num Messages: ", len(state.values["messages"]), "Next: ", state.next)
+    print("-" * 80)
+    if len(state.values["messages"]) == 6:
+        # We are somewhat arbitrarily selecting a specific state based on the number of chat messages in the state.
+        to_replay = state
+
+print(to_replay.next)
+print(to_replay.config)
+
+# The `checkpoint_id` in the `to_replay.config` corresponds to a state we've persisted to our checkpointer.
+for event in graph.stream(None, to_replay.config, stream_mode="values"):
     if "messages" in event:
         event["messages"][-1].pretty_print()
